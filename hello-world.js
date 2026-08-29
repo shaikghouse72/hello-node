@@ -45,6 +45,7 @@ function getMemoryInfo() {
 
         const max = Number(maxRaw);
         const limitMB = Math.round(max / 1024 / 1024);
+
         const percentage = max > 0
             ? ((current / max) * 100).toFixed(1)
             : '0.0';
@@ -68,21 +69,26 @@ function getMemoryInfo() {
 }
 
 function formatUptime(seconds) {
+
     seconds = Math.floor(seconds);
 
     const days = Math.floor(seconds / 86400);
+
     seconds %= 86400;
 
     const hours = Math.floor(seconds / 3600);
+
     seconds %= 3600;
 
     const minutes = Math.floor(seconds / 60);
+
     seconds %= 60;
 
     return `${days}d ${hours}h ${minutes}m ${seconds}s`;
 }
 
 function getClientIP(req) {
+
     const forwarded = req.headers['x-forwarded-for'];
 
     if (forwarded) {
@@ -93,6 +99,7 @@ function getClientIP(req) {
 }
 
 function escapeHtml(value) {
+
     return String(value)
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
@@ -102,18 +109,30 @@ function escapeHtml(value) {
 }
 
 function createCard(icon, label, value, description) {
+
     return `
         <div class="card">
+
             <div class="card-top">
-                <div class="icon">${icon}</div>
-                <div class="label">${label}</div>
+
+                <div class="icon">
+                    ${icon}
+                </div>
+
+                <div class="label">
+                    ${label}
+                </div>
+
             </div>
 
-            <div class="value">${escapeHtml(value)}</div>
+            <div class="value">
+                ${escapeHtml(value)}
+            </div>
 
             <div class="description">
                 ${escapeHtml(description)}
             </div>
+
         </div>
     `;
 }
@@ -170,6 +189,7 @@ const server = http.createServer((req, res) => {
 }
 
 body {
+
     font-family:
         Inter,
         -apple-system,
@@ -184,6 +204,7 @@ body {
 
     min-height: 100vh;
 }
+
 
 /* HEADER */
 
@@ -202,7 +223,6 @@ body {
     padding: 35px 6% 100px;
 
     text-align: center;
-
 }
 
 .header h1 {
@@ -210,7 +230,6 @@ body {
     font-size: 42px;
 
     margin-bottom: 12px;
-
 }
 
 .header p {
@@ -218,7 +237,6 @@ body {
     font-size: 18px;
 
     opacity: 0.9;
-
 }
 
 .status {
@@ -236,8 +254,8 @@ body {
     color: #86efac;
 
     font-weight: bold;
-
 }
+
 
 /* CONTAINER */
 
@@ -250,8 +268,8 @@ body {
     margin: -55px auto 50px;
 
     position: relative;
-
 }
+
 
 /* TRAFFIC FLOW */
 
@@ -267,7 +285,6 @@ body {
         0 10px 35px rgba(15,23,42,0.12);
 
     margin-bottom: 30px;
-
 }
 
 .flow-title {
@@ -279,7 +296,6 @@ body {
     font-weight: bold;
 
     margin-bottom: 25px;
-
 }
 
 .flow-container {
@@ -293,7 +309,6 @@ body {
     gap: 12px;
 
     flex-wrap: wrap;
-
 }
 
 .flow-box {
@@ -309,7 +324,6 @@ body {
     min-width: 160px;
 
     text-align: center;
-
 }
 
 .flow-icon {
@@ -317,7 +331,6 @@ body {
     font-size: 30px;
 
     margin-bottom: 8px;
-
 }
 
 .flow-name {
@@ -325,7 +338,6 @@ body {
     font-weight: bold;
 
     font-size: 15px;
-
 }
 
 .flow-value {
@@ -336,6 +348,7 @@ body {
 
     font-size: 13px;
 
+    word-break: break-word;
 }
 
 .arrow {
@@ -343,8 +356,8 @@ body {
     font-size: 25px;
 
     color: #2563eb;
-
 }
+
 
 /* CARDS */
 
@@ -356,7 +369,6 @@ body {
         repeat(auto-fit, minmax(260px, 1fr));
 
     gap: 20px;
-
 }
 
 .card {
@@ -369,7 +381,6 @@ body {
 
     box-shadow:
         0 8px 25px rgba(15,23,42,0.08);
-
 }
 
 .card-top {
@@ -381,7 +392,6 @@ body {
     gap: 12px;
 
     margin-bottom: 18px;
-
 }
 
 .icon {
@@ -401,7 +411,6 @@ body {
     border-radius: 10px;
 
     font-size: 21px;
-
 }
 
 .label {
@@ -415,7 +424,6 @@ body {
     color: #64748b;
 
     font-weight: bold;
-
 }
 
 .value {
@@ -425,7 +433,6 @@ body {
     font-weight: bold;
 
     word-break: break-word;
-
 }
 
 .description {
@@ -435,8 +442,8 @@ body {
     color: #64748b;
 
     font-size: 13px;
-
 }
+
 
 /* MEMORY */
 
@@ -451,7 +458,6 @@ body {
     border-radius: 10px;
 
     overflow: hidden;
-
 }
 
 .memory-progress {
@@ -461,8 +467,8 @@ body {
     width: ${memory.percentage || 0}%;
 
     background: #2563eb;
-
 }
+
 
 /* FOOTER */
 
@@ -477,7 +483,6 @@ body {
     padding-bottom: 30px;
 
     font-size: 13px;
-
 }
 
 @media (max-width: 700px) {
@@ -485,13 +490,11 @@ body {
     .header h1 {
 
         font-size: 30px;
-
     }
 
     .arrow {
 
         transform: rotate(90deg);
-
     }
 
 }
@@ -504,7 +507,9 @@ body {
 
 <div class="header">
 
-    <h1>Hello from Docker! 🐳</h1>
+    <h1>
+        Hello from Docker! 🐳
+    </h1>
 
     <p>
         Node.js application running inside a Docker container
@@ -515,6 +520,7 @@ body {
     </div>
 
 </div>
+
 
 <div class="container">
 
@@ -608,6 +614,7 @@ body {
 
     </div>
 
+
     <!-- INFORMATION CARDS -->
 
     <div class="grid">
@@ -689,6 +696,7 @@ body {
             'Node.js process uptime'
         )}
 
+
         <div class="card">
 
             <div class="card-top">
@@ -729,15 +737,18 @@ body {
                 memory.percentage !== null
                     ? `
                         <div class="memory-bar">
+
                             <div
                                 class="memory-progress"
                             ></div>
+
                         </div>
                     `
                     : ''
             }
 
         </div>
+
 
         ${createCard(
             '🧠',
@@ -762,10 +773,13 @@ body {
 
     </div>
 
+
     <div class="footer">
 
         Docker Node.js Dashboard •
+
         Version ${APP_VERSION} •
+
         Auto-refresh every 10 seconds
 
     </div>
@@ -778,10 +792,35 @@ body {
     `);
 });
 
-server.listen(PORT, HOST, () => {
 
-    console.log(
-        `${APP_NAME} running on ${HOST}:${PORT}`
-    );
+/*
+ * Start the application only when this file
+ * is executed directly.
+ *
+ * When the file is imported by the test suite,
+ * the server is exported without automatically
+ * listening on port 3000.
+ */
 
-});
+if (require.main === module) {
+
+    server.listen(PORT, HOST, () => {
+
+        console.log(
+            `${APP_NAME} running on ${HOST}:${PORT}`
+        );
+
+    });
+
+}
+
+
+/*
+ * Export the real application server.
+ *
+ * This allows hello-world.test.js to test
+ * the actual application code and allows
+ * c8/SonarQube to measure real coverage.
+ */
+
+module.exports = server;

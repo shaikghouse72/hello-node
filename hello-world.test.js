@@ -6,39 +6,27 @@ const http = require('node:http');
 const HOST = '127.0.0.1';
 const PORT = 3001;
 
+/*
+ * Import the real application.
+ *
+ * hello-world.js should export the HTTP server.
+ */
+const app = require('./hello-world');
+
 test('Docker Node.js application HTTP test', async () => {
 
-    const server = http.createServer((req, res) => {
+    const originalPort = process.env.PORT;
 
-        res.writeHead(200, {
-            'Content-Type': 'text/html; charset=utf-8'
+    process.env.PORT = String(PORT);
+
+    await new Promise((resolve, reject) => {
+
+        app.listen(PORT, HOST, () => {
+            resolve();
         });
 
-        res.end(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Hello Node.js Docker Application</title>
-            </head>
-            <body>
+        app.on('error', reject);
 
-                <h1>Hello from Docker!</h1>
-
-                <p>
-                    Node.js application running inside a Docker container
-                </p>
-
-                <p>
-                    APPLICATION RUNNING
-                </p>
-
-            </body>
-            </html>
-        `);
-    });
-
-    await new Promise((resolve) => {
-        server.listen(PORT, HOST, resolve);
     });
 
     try {
@@ -71,19 +59,17 @@ test('Docker Node.js application HTTP test', async () => {
 
     } finally {
 
-        await new Promise((resolve, reject) => {
-
-            server.close((error) => {
-
-                if (error) {
-                    reject(error);
-                } else {
-                    resolve();
-                }
-
+        await new Promise((resolve) => {
+            app.close(() => {
+                resolve();
             });
-
         });
+
+        if (originalPort === undefined) {
+            delete process.env.PORT;
+        } else {
+            process.env.PORT = originalPort;
+        }
 
     }
 
