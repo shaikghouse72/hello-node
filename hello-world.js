@@ -1,46 +1,151 @@
 const http = require('node:http');
 const os = require('node:os');
+const fs = require('node:fs');
 
-const hostname = '0.0.0.0';
-const port = 3000;
+const HOST = '0.0.0.0';
+const PORT = Number(process.env.PORT || 3000);
 
-const podName = process.env.POD_NAME || 'Unknown';
-const podNamespace = process.env.POD_NAMESPACE || 'Unknown';
-const podIP = process.env.POD_IP || 'Unknown';
-const nodeName = process.env.NODE_NAME || 'Unknown';
+const APP_NAME = 'Hello Node.js - Docker Application';
+const APP_VERSION = '2.0.0';
+
+const DOCKER_HOST_IP = process.env.DOCKER_HOST_IP || 'Unknown';
+const HOST_PORT = process.env.HOST_PORT || 'Unknown';
+const CONTAINER_NAME = process.env.CONTAINER_NAME || 'Unknown';
 
 const startTime = Date.now();
 
-function formatUptime(seconds) {
-  const days = Math.floor(seconds / 86400);
-  seconds %= 86400;
-
-  const hours = Math.floor(seconds / 3600);
-  seconds %= 3600;
-
-  const minutes = Math.floor(seconds / 60);
-  seconds = Math.floor(seconds % 60);
-
-  return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+function getContainerId() {
+    try {
+        return fs.readFileSync('/etc/hostname', 'utf8').trim();
+    } catch {
+        return 'Unknown';
+    }
 }
 
-function getMemory() {
-  const used = process.memoryUsage().rss;
-  const usedMB = Math.round(used / 1024 / 1024);
+function getMemoryInfo() {
+    try {
+        const current = Number(
+            fs.readFileSync('/sys/fs/cgroup/memory.current', 'utf8').trim()
+        );
 
-  return usedMB;
+        const maxRaw = fs.readFileSync(
+            '/sys/fs/cgroup/memory.max',
+            'utf8'
+        ).trim();
+
+        const currentMB = Math.round(current / 1024 / 1024);
+
+        if (maxRaw === 'max') {
+            return {
+                usedMB: currentMB,
+                limitMB: null,
+                percentage: null
+            };
+        }
+
+        const max = Number(maxRaw);
+        const limitMB = Math.round(max / 1024 / 1024);
+        const percentage = max > 0
+            ? ((current / max) * 100).toFixed(1)
+            : '0.0';
+
+        return {
+            usedMB: currentMB,
+            limitMB,
+            percentage
+        };
+
+    } catch {
+        const rss = process.memoryUsage().rss;
+        const usedMB = Math.round(rss / 1024 / 1024);
+
+        return {
+            usedMB,
+            limitMB: null,
+            percentage: null
+        };
+    }
+}
+
+function formatUptime(seconds) {
+    seconds = Math.floor(seconds);
+
+    const days = Math.floor(seconds / 86400);
+    seconds %= 86400;
+
+    const hours = Math.floor(seconds / 3600);
+    seconds %= 3600;
+
+    const minutes = Math.floor(seconds / 60);
+    seconds %= 60;
+
+    return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+}
+
+function getClientIP(req) {
+    const forwarded = req.headers['x-forwarded-for'];
+
+    if (forwarded) {
+        return forwarded.split(',')[0].trim();
+    }
+
+    return req.socket.remoteAddress || 'Unknown';
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function createCard(icon, label, value, description) {
+    return `
+        <div class="card">
+            <div class="card-top">
+                <div class="icon">${icon}</div>
+                <div class="label">${label}</div>
+            </div>
+
+            <div class="value">${escapeHtml(value)}</div>
+
+            <div class="description">
+                ${escapeHtml(description)}
+            </div>
+        </div>
+    `;
 }
 
 const server = http.createServer((req, res) => {
 
-  const uptime = formatUptime(process.uptime());
-  const memory = getMemory();
-  const cpuCores = os.cpus().length;
+    const clientIP = getClientIP(req);
 
-  res.statusCode = 200;
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    const containerId = getContainerId();
 
-  res.end(`
+    const memory = getMemoryInfo();
+
+    const processMemoryMB =
+        Math.round(process.memoryUsage().rss / 1024 / 1024);
+
+    const uptime = formatUptime(process.uptime());
+
+    const nodeVersion = process.version;
+
+    const cpuCores = os.cpus().length;
+
+    const platform = os.platform();
+
+    const architecture = os.arch();
+
+    const hostname = os.hostname();
+
+    res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8'
+    });
+
+    res.end(`
 <!DOCTYPE html>
 
 <html lang="en">
@@ -54,484 +159,340 @@ const server = http.createServer((req, res) => {
 
 <meta http-equiv="refresh" content="10">
 
-<title>Kubernetes Node.js Dashboard</title>
+<title>${APP_NAME}</title>
 
 <style>
 
 * {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
 body {
+    font-family:
+        Inter,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Arial,
+        sans-serif;
 
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Arial,
-    sans-serif;
+    background: #f4f7fb;
 
-  background: #f4f7fb;
+    color: #172033;
 
-  color: #172033;
-
-  min-height: 100vh;
+    min-height: 100vh;
 }
-
 
 /* HEADER */
 
 .header {
 
-  background:
-    linear-gradient(
-      135deg,
-      #0f172a,
-      #172554,
-      #1e40af
-    );
+    background:
+        linear-gradient(
+            135deg,
+            #0f172a,
+            #172554,
+            #1e40af
+        );
 
-  color: white;
+    color: white;
 
-  padding: 22px 6%;
+    padding: 35px 6% 100px;
 
-  display: flex;
-
-  justify-content: space-between;
-
-  align-items: center;
-
-  box-shadow:
-    0 5px 25px rgba(15,23,42,0.18);
-}
-
-.brand {
-
-  display: flex;
-
-  align-items: center;
-
-  gap: 15px;
-}
-
-.logo {
-
-  width: 52px;
-
-  height: 52px;
-
-  border-radius: 15px;
-
-  display: flex;
-
-  align-items: center;
-
-  justify-content: center;
-
-  background:
-    rgba(255,255,255,0.12);
-
-  font-size: 28px;
-}
-
-.brand h1 {
-
-  font-size: 23px;
+    text-align: center;
 
 }
 
-.brand p {
+.header h1 {
 
-  color: #bfdbfe;
+    font-size: 42px;
 
-  font-size: 13px;
+    margin-bottom: 12px;
 
-  margin-top: 4px;
+}
+
+.header p {
+
+    font-size: 18px;
+
+    opacity: 0.9;
+
 }
 
 .status {
 
-  display: flex;
+    display: inline-block;
 
-  align-items: center;
+    margin-top: 20px;
 
-  gap: 8px;
+    padding: 10px 22px;
 
-  padding: 9px 17px;
+    border-radius: 30px;
 
-  border-radius: 30px;
+    background: rgba(34,197,94,0.18);
 
-  background:
-    rgba(34,197,94,0.15);
+    color: #86efac;
 
-  border:
-    1px solid rgba(134,239,172,0.3);
+    font-weight: bold;
 
-  color: #bbf7d0;
-
-  font-weight: 600;
-
-  font-size: 13px;
 }
 
-.status-dot {
-
-  width: 9px;
-
-  height: 9px;
-
-  border-radius: 50%;
-
-  background: #22c55e;
-
-  box-shadow:
-    0 0 10px #22c55e;
-}
-
-
-/* HERO */
-
-.hero {
-
-  background:
-
-    radial-gradient(
-      circle at 20% 30%,
-      rgba(59,130,246,0.4),
-      transparent 35%
-    ),
-
-    radial-gradient(
-      circle at 80% 70%,
-      rgba(99,102,241,0.4),
-      transparent 35%
-    ),
-
-    linear-gradient(
-      135deg,
-      #172554,
-      #1d4ed8,
-      #3730a3
-    );
-
-  color: white;
-
-  text-align: center;
-
-  padding: 55px 20px;
-}
-
-.hero h2 {
-
-  font-size:
-    clamp(34px, 5vw, 56px);
-
-  margin-bottom: 14px;
-}
-
-.hero h2 span {
-
-  color: #bfdbfe;
-}
-
-.hero p {
-
-  color: #dbeafe;
-
-  font-size: 17px;
-
-  margin-bottom: 24px;
-}
-
-.hero-status {
-
-  display: inline-flex;
-
-  align-items: center;
-
-  gap: 8px;
-
-  padding: 10px 20px;
-
-  border-radius: 30px;
-
-  background:
-    rgba(34,197,94,0.18);
-
-  color: #bbf7d0;
-
-  font-weight: 600;
-}
-
-
-/* MAIN */
+/* CONTAINER */
 
 .container {
 
-  max-width: 1200px;
+    width: 90%;
 
-  margin:
-    -30px auto 40px;
+    max-width: 1250px;
 
-  padding:
-    0 20px;
+    margin: -55px auto 50px;
 
-  position: relative;
+    position: relative;
+
 }
 
-
-/* KUBERNETES FLOW */
+/* TRAFFIC FLOW */
 
 .flow {
 
-  background: white;
+    background: white;
 
-  border-radius: 20px;
+    border-radius: 18px;
 
-  padding: 28px;
+    padding: 30px;
 
-  box-shadow:
-    0 10px 35px rgba(15,23,42,0.08);
+    box-shadow:
+        0 10px 35px rgba(15,23,42,0.12);
 
-  margin-bottom: 25px;
+    margin-bottom: 30px;
+
 }
 
 .flow-title {
 
-  font-size: 18px;
+    text-align: center;
 
-  font-weight: 700;
+    font-size: 21px;
 
-  margin-bottom: 22px;
+    font-weight: bold;
 
-  text-align: center;
+    margin-bottom: 25px;
+
 }
 
 .flow-container {
 
-  display: flex;
+    display: flex;
 
-  align-items: center;
+    justify-content: center;
 
-  justify-content: center;
+    align-items: center;
 
-  gap: 10px;
+    gap: 12px;
 
-  flex-wrap: wrap;
+    flex-wrap: wrap;
+
 }
 
 .flow-box {
 
-  min-width: 145px;
+    background: #eff6ff;
 
-  padding: 18px;
+    border: 1px solid #dbeafe;
 
-  text-align: center;
+    border-radius: 14px;
 
-  border-radius: 14px;
+    padding: 18px;
 
-  background: #eff6ff;
+    min-width: 160px;
 
-  border: 1px solid #dbeafe;
+    text-align: center;
+
 }
 
-.flow-box .icon {
+.flow-icon {
 
-  font-size: 25px;
+    font-size: 30px;
 
-  margin-bottom: 7px;
+    margin-bottom: 8px;
+
 }
 
-.flow-box strong {
+.flow-name {
 
-  display: block;
+    font-weight: bold;
 
-  color: #1e3a8a;
+    font-size: 15px;
 
-  font-size: 14px;
 }
 
-.flow-box small {
+.flow-value {
 
-  color: #64748b;
+    margin-top: 5px;
 
-  font-size: 11px;
+    color: #475569;
+
+    font-size: 13px;
+
 }
 
 .arrow {
 
-  font-size: 24px;
+    font-size: 25px;
 
-  color: #6366f1;
+    color: #2563eb;
 
-  font-weight: bold;
 }
-
 
 /* CARDS */
 
-.cards {
+.grid {
 
-  display: grid;
+    display: grid;
 
-  grid-template-columns:
-    repeat(auto-fit, minmax(240px, 1fr));
+    grid-template-columns:
+        repeat(auto-fit, minmax(260px, 1fr));
 
-  gap: 20px;
+    gap: 20px;
+
 }
 
 .card {
 
-  background: white;
+    background: white;
 
-  border-radius: 18px;
+    border-radius: 18px;
 
-  padding: 24px;
+    padding: 25px;
 
-  box-shadow:
-    0 8px 25px rgba(15,23,42,0.06);
+    box-shadow:
+        0 8px 25px rgba(15,23,42,0.08);
 
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
 }
 
-.card:hover {
+.card-top {
 
-  transform:
-    translateY(-4px);
+    display: flex;
 
-  box-shadow:
-    0 14px 35px rgba(15,23,42,0.12);
+    align-items: center;
+
+    gap: 12px;
+
+    margin-bottom: 18px;
+
 }
 
-.card-header {
+.icon {
 
-  display: flex;
+    width: 42px;
 
-  align-items: center;
+    height: 42px;
 
-  gap: 13px;
+    display: flex;
 
-  margin-bottom: 18px;
+    align-items: center;
+
+    justify-content: center;
+
+    background: #eff6ff;
+
+    border-radius: 10px;
+
+    font-size: 21px;
+
 }
 
-.card-icon {
+.label {
 
-  width: 45px;
+    font-size: 12px;
 
-  height: 45px;
+    text-transform: uppercase;
 
-  border-radius: 13px;
+    letter-spacing: 1px;
 
-  background: #eef2ff;
+    color: #64748b;
 
-  display: flex;
+    font-weight: bold;
 
-  align-items: center;
-
-  justify-content: center;
-
-  font-size: 21px;
 }
 
-.card-title {
+.value {
 
-  color: #64748b;
+    font-size: 25px;
 
-  font-size: 11px;
+    font-weight: bold;
 
-  text-transform: uppercase;
+    word-break: break-word;
 
-  letter-spacing: 1px;
 }
 
-.card-value {
+.description {
 
-  font-size: 20px;
+    margin-top: 8px;
 
-  font-weight: 700;
+    color: #64748b;
 
-  color: #172033;
+    font-size: 13px;
 
-  word-break: break-word;
 }
 
-.card-description {
+/* MEMORY */
 
-  margin-top: 6px;
+.memory-bar {
 
-  color: #94a3b8;
+    margin-top: 15px;
 
-  font-size: 12px;
+    height: 10px;
+
+    background: #e2e8f0;
+
+    border-radius: 10px;
+
+    overflow: hidden;
+
 }
 
+.memory-progress {
+
+    height: 100%;
+
+    width: ${memory.percentage || 0}%;
+
+    background: #2563eb;
+
+}
 
 /* FOOTER */
 
 .footer {
 
-  max-width: 1200px;
+    text-align: center;
 
-  margin: 25px auto;
+    color: #64748b;
 
-  padding: 28px;
+    margin-top: 35px;
 
-  background: #0f172a;
+    padding-bottom: 30px;
 
-  color: #94a3b8;
+    font-size: 13px;
 
-  text-align: center;
-
-  border-radius: 18px;
 }
-
-.footer strong {
-
-  color: white;
-
-  font-size: 16px;
-}
-
-.footer p {
-
-  margin-top: 8px;
-
-  color: #60a5fa;
-
-  font-size: 13px;
-}
-
-
-/* MOBILE */
 
 @media (max-width: 700px) {
 
-  .header {
+    .header h1 {
 
-    padding:
-      18px 20px;
-  }
+        font-size: 30px;
 
-  .status {
+    }
 
-    display: none;
-  }
+    .arrow {
 
-  .hero {
+        transform: rotate(90deg);
 
-    padding:
-      45px 20px;
-  }
-
-  .arrow {
-
-    transform:
-      rotate(90deg);
-  }
+    }
 
 }
 
@@ -539,423 +500,288 @@ body {
 
 </head>
 
-
 <body>
 
+<div class="header">
 
-<header class="header">
+    <h1>Hello from Docker! 🐳</h1>
 
-  <div class="brand">
+    <p>
+        Node.js application running inside a Docker container
+    </p>
 
-    <div class="logo">
-      ☸️
+    <div class="status">
+        🟢 APPLICATION RUNNING
     </div>
-
-    <div>
-
-      <h1>
-        Kubernetes Dashboard
-      </h1>
-
-      <p>
-        Node.js Application Monitoring
-      </p>
-
-    </div>
-
-  </div>
-
-
-  <div class="status">
-
-    <span class="status-dot"></span>
-
-    POD ONLINE
-
-  </div>
-
-</header>
-
-
-<section class="hero">
-
-  <h2>
-    Hello from <span>Kubernetes!</span> 🚀
-  </h2>
-
-  <p>
-    Your Node.js application is running inside a Kubernetes Pod.
-  </p>
-
-  <div class="hero-status">
-
-    <span class="status-dot"></span>
-
-    APPLICATION RUNNING
-
-  </div>
-
-</section>
-
-
-<main class="container">
-
-
-<section class="flow">
-
-  <div class="flow-title">
-    ☸️ Kubernetes Traffic Flow
-  </div>
-
-  <div class="flow-container">
-
-    <div class="flow-box">
-
-      <div class="icon">🌐</div>
-
-      <strong>Browser</strong>
-
-      <small>192.168.0.69</small>
-
-    </div>
-
-    <div class="arrow">→</div>
-
-    <div class="flow-box">
-
-      <div class="icon">🔌</div>
-
-      <strong>NodePort</strong>
-
-      <small>:30080</small>
-
-    </div>
-
-    <div class="arrow">→</div>
-
-    <div class="flow-box">
-
-      <div class="icon">⚙️</div>
-
-      <strong>Service</strong>
-
-      <small>hello-node-service</small>
-
-    </div>
-
-    <div class="arrow">→</div>
-
-    <div class="flow-box">
-
-      <div class="icon">📦</div>
-
-      <strong>Pod</strong>
-
-      <small>${podName}</small>
-
-    </div>
-
-    <div class="arrow">→</div>
-
-    <div class="flow-box">
-
-      <div class="icon">🟢</div>
-
-      <strong>Node.js</strong>
-
-      <small>:3000</small>
-
-    </div>
-
-  </div>
-
-</section>
-
-
-<section class="cards">
-
-
-<div class="card">
-
-  <div class="card-header">
-
-    <div class="card-icon">
-      📦
-    </div>
-
-    <div class="card-title">
-      Pod Name
-    </div>
-
-  </div>
-
-  <div class="card-value">
-    ${podName}
-  </div>
-
-  <div class="card-description">
-    Kubernetes workload
-  </div>
 
 </div>
 
+<div class="container">
 
-<div class="card">
+    <!-- TRAFFIC FLOW -->
 
-  <div class="card-header">
+    <div class="flow">
 
-    <div class="card-icon">
-      🖥️
+        <div class="flow-title">
+            🐳 Docker Traffic Flow
+        </div>
+
+        <div class="flow-container">
+
+            <div class="flow-box">
+
+                <div class="flow-icon">
+                    🌐
+                </div>
+
+                <div class="flow-name">
+                    Browser
+                </div>
+
+                <div class="flow-value">
+                    ${escapeHtml(clientIP)}
+                </div>
+
+            </div>
+
+            <div class="arrow">
+                →
+            </div>
+
+            <div class="flow-box">
+
+                <div class="flow-icon">
+                    🔌
+                </div>
+
+                <div class="flow-name">
+                    Host Port
+                </div>
+
+                <div class="flow-value">
+                    ${escapeHtml(DOCKER_HOST_IP)}:${escapeHtml(HOST_PORT)}
+                </div>
+
+            </div>
+
+            <div class="arrow">
+                →
+            </div>
+
+            <div class="flow-box">
+
+                <div class="flow-icon">
+                    🐳
+                </div>
+
+                <div class="flow-name">
+                    Container
+                </div>
+
+                <div class="flow-value">
+                    ${escapeHtml(CONTAINER_NAME)}
+                </div>
+
+            </div>
+
+            <div class="arrow">
+                →
+            </div>
+
+            <div class="flow-box">
+
+                <div class="flow-icon">
+                    🟢
+                </div>
+
+                <div class="flow-name">
+                    Node.js
+                </div>
+
+                <div class="flow-value">
+                    :${PORT}
+                </div>
+
+            </div>
+
+        </div>
+
     </div>
 
-    <div class="card-title">
-      Kubernetes Node
+    <!-- INFORMATION CARDS -->
+
+    <div class="grid">
+
+        ${createCard(
+            '🌐',
+            'Browser IP',
+            clientIP,
+            'Client address received by Node.js'
+        )}
+
+        ${createCard(
+            '🖥️',
+            'Docker Host',
+            DOCKER_HOST_IP,
+            'Docker server hosting this container'
+        )}
+
+        ${createCard(
+            '🐳',
+            'Container Name',
+            CONTAINER_NAME,
+            'Docker container name'
+        )}
+
+        ${createCard(
+            '🆔',
+            'Container ID',
+            containerId,
+            'Container hostname / ID'
+        )}
+
+        ${createCard(
+            '🔌',
+            'Container Port',
+            PORT,
+            'Node.js listening port'
+        )}
+
+        ${createCard(
+            '🔗',
+            'Host Port',
+            HOST_PORT,
+            'Port exposed by Docker'
+        )}
+
+        ${createCard(
+            '🟢',
+            'Node.js Version',
+            nodeVersion,
+            'Running Node.js version'
+        )}
+
+        ${createCard(
+            '⚙️',
+            'CPU Cores',
+            cpuCores,
+            'Available CPU cores'
+        )}
+
+        ${createCard(
+            '💻',
+            'Architecture',
+            architecture,
+            'Container architecture'
+        )}
+
+        ${createCard(
+            '🐧',
+            'Platform',
+            platform,
+            'Operating system platform'
+        )}
+
+        ${createCard(
+            '⏱️',
+            'Container Uptime',
+            uptime,
+            'Node.js process uptime'
+        )}
+
+        <div class="card">
+
+            <div class="card-top">
+
+                <div class="icon">
+                    🧠
+                </div>
+
+                <div class="label">
+                    Container Memory
+                </div>
+
+            </div>
+
+            <div class="value">
+
+                ${memory.usedMB} MB
+
+                ${
+                    memory.limitMB
+                        ? `/ ${memory.limitMB} MB`
+                        : ''
+                }
+
+            </div>
+
+            <div class="description">
+
+                ${
+                    memory.percentage !== null
+                        ? `${memory.percentage}% of container memory limit`
+                        : 'Memory limit not configured'
+                }
+
+            </div>
+
+            ${
+                memory.percentage !== null
+                    ? `
+                        <div class="memory-bar">
+                            <div
+                                class="memory-progress"
+                            ></div>
+                        </div>
+                    `
+                    : ''
+            }
+
+        </div>
+
+        ${createCard(
+            '🧠',
+            'Node.js Process Memory',
+            `${processMemoryMB} MB`,
+            'RSS memory used by Node.js'
+        )}
+
+        ${createCard(
+            '📦',
+            'Application',
+            APP_NAME,
+            `Version ${APP_VERSION}`
+        )}
+
+        ${createCard(
+            '🏷️',
+            'Container Hostname',
+            hostname,
+            'Hostname visible inside container'
+        )}
+
     </div>
 
-  </div>
+    <div class="footer">
 
-  <div class="card-value">
-    ${nodeName}
-  </div>
+        Docker Node.js Dashboard •
+        Version ${APP_VERSION} •
+        Auto-refresh every 10 seconds
 
-  <div class="card-description">
-    Pod is currently running here
-  </div>
+    </div>
 
 </div>
-
-
-<div class="card">
-
-  <div class="card-header">
-
-    <div class="card-icon">
-      🌐
-    </div>
-
-    <div class="card-title">
-      Pod IP
-    </div>
-
-  </div>
-
-  <div class="card-value">
-    ${podIP}
-  </div>
-
-  <div class="card-description">
-    Internal Kubernetes network
-  </div>
-
-</div>
-
-
-<div class="card">
-
-  <div class="card-header">
-
-    <div class="card-icon">
-      🗂️
-    </div>
-
-    <div class="card-title">
-      Namespace
-    </div>
-
-  </div>
-
-  <div class="card-value">
-    ${podNamespace}
-  </div>
-
-  <div class="card-description">
-    Kubernetes namespace
-  </div>
-
-</div>
-
-
-<div class="card">
-
-  <div class="card-header">
-
-    <div class="card-icon">
-      🟢
-    </div>
-
-    <div class="card-title">
-      Application
-    </div>
-
-  </div>
-
-  <div class="card-value">
-    Node.js
-  </div>
-
-  <div class="card-description">
-    Version ${process.version}
-  </div>
-
-</div>
-
-
-<div class="card">
-
-  <div class="card-header">
-
-    <div class="card-icon">
-      🔌
-    </div>
-
-    <div class="card-title">
-      Container Port
-    </div>
-
-  </div>
-
-  <div class="card-value">
-    3000
-  </div>
-
-  <div class="card-description">
-    Node.js HTTP server
-  </div>
-
-</div>
-
-
-<div class="card">
-
-  <div class="card-header">
-
-    <div class="card-icon">
-      🧠
-    </div>
-
-    <div class="card-title">
-      Container Memory
-    </div>
-
-  </div>
-
-  <div class="card-value">
-    ${memory} MB
-  </div>
-
-  <div class="card-description">
-    Current Node.js process
-  </div>
-
-</div>
-
-
-<div class="card">
-
-  <div class="card-header">
-
-    <div class="card-icon">
-      ⏱️
-    </div>
-
-    <div class="card-title">
-      Pod Uptime
-    </div>
-
-  </div>
-
-  <div class="card-value">
-    ${uptime}
-  </div>
-
-  <div class="card-description">
-    Node.js process uptime
-  </div>
-
-</div>
-
-
-<div class="card">
-
-  <div class="card-header">
-
-    <div class="card-icon">
-      ⚡
-    </div>
-
-    <div class="card-title">
-      CPU Cores
-    </div>
-
-  </div>
-
-  <div class="card-value">
-    ${cpuCores}
-  </div>
-
-  <div class="card-description">
-    Available to container
-  </div>
-
-</div>
-
-
-<div class="card">
-
-  <div class="card-header">
-
-    <div class="card-icon">
-      🐧
-    </div>
-
-    <div class="card-title">
-      Platform
-    </div>
-
-  </div>
-
-  <div class="card-value">
-    ${os.platform()}
-  </div>
-
-  <div class="card-description">
-    ${os.arch()}
-  </div>
-
-</div>
-
-
-</section>
-
-</main>
-
-
-<footer class="footer">
-
-  <strong>
-    ☸️ Kubernetes + Node.js
-  </strong>
-
-  <p>
-    Pod: ${podName}
-    • Node: ${nodeName}
-    • Port: 3000
-  </p>
-
-</footer>
-
 
 </body>
 
 </html>
-  `);
+    `);
 });
 
+server.listen(PORT, HOST, () => {
 
-server.listen(port, hostname, () => {
-
-  console.log(
-    `Kubernetes Node.js application running on port ${port}`
-  );
+    console.log(
+        `${APP_NAME} running on ${HOST}:${PORT}`
+    );
 
 });

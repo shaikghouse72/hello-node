@@ -2,14 +2,12 @@ FROM node:24-alpine
 
 WORKDIR /app
 
-COPY package.json ./
+COPY package*.json ./
 
-RUN npm install --omit=dev
+RUN npm install
 
 COPY hello-world.js .
 
 EXPOSE 3000
-
-ENV PORT=3000
 
 CMD ["node", "hello-world.js"]

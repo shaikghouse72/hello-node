@@ -1,0 +1,9 @@
+.git
+.gitignore
+node_modules
+*.backup
+*.old.js
+hello-world.test.js
+hello-world.test.docker-backup.js
+hello-world.docker-backup.js
+Dockerfile.docker-backup
