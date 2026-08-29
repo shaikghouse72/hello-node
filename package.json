@@ -1,14 +1,23 @@
 {
   "name": "hello-node",
-  "version": "1.0.0",
-  "description": "",
+  "version": "2.0.0",
+  "description": "Hello Node.js Docker application",
   "main": "hello-world.js",
   "scripts": {
     "start": "node hello-world.js",
-    "test": "node --test"
-},
-  "keywords": [],
+    "test": "node --test",
+    "coverage": "c8 --reporter=text --reporter=lcov node --test"
+  },
+  "keywords": [
+    "nodejs",
+    "docker",
+    "jenkins",
+    "sonarqube"
+  ],
   "author": "",
   "license": "ISC",
-  "type": "commonjs"
+  "type": "commonjs",
+  "devDependencies": {
+    "c8": "^10.1.3"
+  }
 }
