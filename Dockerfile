@@ -8,6 +8,10 @@ RUN npm install --omit=dev
 
 COPY hello-world.js .
 
+RUN chown -R node:node /app
+
+USER node
+
 EXPOSE 3000
 
 ENV PORT=3000
