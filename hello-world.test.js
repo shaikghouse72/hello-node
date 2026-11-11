@@ -1,76 +1,86 @@
 const test = require('node:test');
-const assert = require('node:assert');
-
+const assert = require('node:assert/strict');
 const http = require('node:http');
 
-const HOST = '127.0.0.1';
-const PORT = 3001;
-
-/*
- * Import the real application.
- *
- * hello-world.js should export the HTTP server.
- */
 const app = require('./hello-world');
 
-test('Docker Node.js application HTTP test', async () => {
-
-    const originalPort = process.env.PORT;
-
-    process.env.PORT = String(PORT);
+test('Docker Studio application HTTP tests', async (t) => {
+    const server = http.createServer(app.listeners('request')[0]);
 
     await new Promise((resolve, reject) => {
-
-        app.listen(PORT, HOST, () => {
-            resolve();
-        });
-
-        app.on('error', reject);
-
+        server.once('error', reject);
+        server.listen(0, '127.0.0.1', resolve);
     });
 
-    try {
+    t.after(async () => {
+        await new Promise((resolve, reject) => {
+            server.close((err) => err ? reject(err) : resolve());
+        });
+    });
 
-        const response = await fetch(
-            `http://${HOST}:${PORT}`
-        );
+    const address = server.address();
+    const baseUrl = `http://127.0.0.1:${address.port}`;
 
-        assert.strictEqual(
-            response.status,
-            200
+    await t.test('Dashboard returns HTTP 200', async () => {
+        const response = await fetch(`${baseUrl}/`);
+        assert.equal(response.status, 200);
+        assert.match(
+            response.headers.get('content-type'),
+            /text\/html/
         );
 
         const body = await response.text();
 
         assert.ok(
-            body.includes('Hello from Docker!'),
-            'Response should contain Docker greeting'
+            body.includes('<title>Docker Studio | Live Dashboard</title>'),
+            'Dashboard title should be present'
+        );
+    });
+
+    await t.test('Health endpoint returns healthy', async () => {
+        const response = await fetch(`${baseUrl}/health`);
+
+        assert.equal(response.status, 200);
+
+        const body = await response.json();
+        assert.equal(body.status, 'healthy');
+    });
+
+    await t.test('Status API returns JSON', async () => {
+        const response = await fetch(`${baseUrl}/api/status`);
+
+        assert.equal(response.status, 200);
+        assert.match(
+            response.headers.get('content-type'),
+            /application\/json/
         );
 
-        assert.ok(
-            body.includes('Node.js application'),
-            'Response should contain Node.js application text'
-        );
+        const body = await response.json();
+        assert.equal(typeof body, 'object');
+        assert.ok(body !== null);
+    });
 
-        assert.ok(
-            body.includes('APPLICATION RUNNING'),
-            'Response should contain application status'
-        );
+    await t.test('Invalid route returns HTTP 404', async () => {
+        const response = await fetch(`${baseUrl}/invalid-route`);
 
-    } finally {
+        assert.equal(response.status, 404);
+    });
 
-        await new Promise((resolve) => {
-            app.close(() => {
-                resolve();
-            });
+    await t.test('Unsupported method returns HTTP 405', async () => {
+        const response = await fetch(`${baseUrl}/`, {
+            method: 'POST'
         });
 
-        if (originalPort === undefined) {
-            delete process.env.PORT;
-        } else {
-            process.env.PORT = originalPort;
-        }
+        assert.equal(response.status, 405);
+        assert.equal(response.headers.get('allow'), 'GET, HEAD');
+    });
 
-    }
+    await t.test('HEAD request returns no body', async () => {
+        const response = await fetch(`${baseUrl}/`, {
+            method: 'HEAD'
+        });
 
+        assert.equal(response.status, 200);
+        assert.equal(await response.text(), '');
+    });
 });
