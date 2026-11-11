@@ -685,6 +685,7 @@ h1 {
     <div>
       <div class="eyebrow">CONTAINER OBSERVABILITY</div>
       <h1>System overview</h1>
+      <p class="subtitle">Deployed via Jenkins CI/CD — Version 2.1</p>
       <p class="subtitle">Live runtime insights for your Dockerized Node.js application.</p>
     </div>
     <div class="updated" id="updated">Updating...</div>
